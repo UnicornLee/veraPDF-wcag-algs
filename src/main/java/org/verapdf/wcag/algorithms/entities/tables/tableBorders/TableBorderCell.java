@@ -103,18 +103,34 @@ public class TableBorderCell extends BaseObject {
         return colNumber;
     }
 
+    public void setColNumber(int colNumber) {
+        this.colNumber = colNumber;
+    }
+
     public int getRowNumber() {
         return rowNumber;
+    }
+
+    public void setRowNumber(int rowNumber) {
+        this.rowNumber = rowNumber;
     }
 
     public int getRowSpan() {
         return rowSpan;
     }
 
+    public void setRowSpan(int rowSpan) {
+        this.rowSpan = rowSpan;
+    }
+
     public int getColSpan() {
         return colSpan;
     }
-    
+
+    public void setColSpan(int colSpan) {
+        this.colSpan = colSpan;
+    }
+
     public boolean isHeaderCell() {
         return semanticType == SemanticType.TABLE_HEADER;
     }

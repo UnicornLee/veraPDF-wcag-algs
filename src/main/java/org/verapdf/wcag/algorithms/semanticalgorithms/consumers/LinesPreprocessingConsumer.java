@@ -30,6 +30,7 @@ import org.verapdf.wcag.algorithms.semanticalgorithms.utils.WCAGProgressStatus;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class LinesPreprocessingConsumer extends WCAGConsumer {
 
@@ -138,11 +139,72 @@ public class LinesPreprocessingConsumer extends WCAGConsumer {
                 i++;
             }
         }
+        List<TableBorderBuilder> filterTableBorders = new ArrayList<>();
         for (TableBorderBuilder border : tableBorders) {
+            List<LineChunk> verticalLines = border.getVerticalLines().stream().collect(Collectors.toList());
+            verticalLines.sort(Comparator.comparingDouble(item -> item.getLeftX()));
+            List<LineChunk> horizontalLines = border.getHorizontalLines().stream().collect(Collectors.toList());
+            horizontalLines.sort(Comparator.comparingDouble(item -> item.getTopY()));
+            boolean isAllNotBlack = true;
+            for (LineChunk verticalLine : verticalLines) {
+                if (verticalLine.getStrokeColor()[0] == 0.0 && verticalLine.getStrokeColor()[1] == 0.0 && verticalLine.getStrokeColor()[2] == 0.0) {
+                    isAllNotBlack = false;
+                    break;
+                }
+            }
+            if (!isAllNotBlack) {
+                for (LineChunk horizontalLine : horizontalLines) {
+                    if (horizontalLine.getStrokeColor()[0] == 0.0 && horizontalLine.getStrokeColor()[1] == 0.0 && horizontalLine.getStrokeColor()[2] == 0.0) {
+                        isAllNotBlack = false;
+                        break;
+                    }
+                }
+            }
+            List<List<LineChunk>> groupVerticalLines = new ArrayList<>();
+            List<LineChunk> group = new ArrayList<>();
+            for (int i = 0; i < verticalLines.size(); i++) {
+                LineChunk lineChunk = verticalLines.get(i);
+                if (i == 0) {
+                    group.add(lineChunk);
+                }
+                if (Math.abs(lineChunk.getLeftX() - group.get(0).getLeftX()) < 2) {
+                    group.add(lineChunk);
+                } else {
+                    groupVerticalLines.add(group);
+                    group = new ArrayList<>();
+                    group.add(lineChunk);
+                }
+            }
+            if (group.size() > 0) {
+                groupVerticalLines.add(group);
+            }
+            List<List<LineChunk>> groupHorizontalLines = new ArrayList<>();
+            group = new ArrayList<>();
+            for (int i = 0; i < horizontalLines.size(); i++) {
+                LineChunk lineChunk = horizontalLines.get(i);
+                if (i == 0) {
+                    group.add(lineChunk);
+                }
+                if (Math.abs(lineChunk.getTopY() - group.get(0).getTopY()) < 2) {
+                    group.add(lineChunk);
+                } else {
+                    groupHorizontalLines.add(group);
+                    group = new ArrayList<>();
+                    group.add(lineChunk);
+                }
+            }
+            if (group.size() > 0) {
+                groupHorizontalLines.add(group);
+            }
+
+            if (!isAllNotBlack || groupVerticalLines.size() > 2 || groupHorizontalLines.size() > 2) {
+                filterTableBorders.add(border);
+            }
             StaticContainers.getLinesCollection().getVerticalLines(pageNumber).removeAll(border.getVerticalLines());
             StaticContainers.getLinesCollection().getHorizontalLines(pageNumber).removeAll(border.getHorizontalLines());
+
         }
-        return tableBorders;
+        return filterTableBorders;
     }
 
     private void mergeTableBorders(List<TableBorderBuilder> tableBorders) {
