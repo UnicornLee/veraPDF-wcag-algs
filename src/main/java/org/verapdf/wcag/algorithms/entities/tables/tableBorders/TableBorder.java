@@ -334,6 +334,7 @@ public class TableBorder extends BaseObject {
     }
 
     private boolean processMergedCells(TableBorderRow[] rows, int numberOfRows, int numberOfColumns) {
+        int badCellCount = 0;
         for (int rowNumber = numberOfRows - 2; rowNumber >= 0; rowNumber--) {
             if (rows[rowNumber].cells[numberOfColumns - 1].rowSpan != 1) {
                 rows[rowNumber].cells[numberOfColumns - 1].rowSpan = rows[rowNumber + 1].cells[numberOfColumns - 1].rowSpan + 1;
@@ -361,8 +362,19 @@ public class TableBorder extends BaseObject {
                             rows[rowNumber].cells[colNumber].rowNumber + rows[rowNumber].cells[colNumber].rowSpan) {
                         rows[rowNumber].cells[colNumber + 1] = rows[rowNumber].cells[colNumber];
                     } else {
-                        isBadTable = true;
-                        return true;
+                        badCellCount++;
+                        if (rows[rowNumber].cells[colNumber].rowSpan > rows[rowNumber].cells[colNumber + 1].rowSpan) {
+                            rows[rowNumber].cells[colNumber].setRowSpan(rows[rowNumber].cells[colNumber + 1].rowSpan);
+                            rows[rowNumber].cells[colNumber + 1].setColSpan(rows[rowNumber].cells[colNumber].colSpan);
+                            rows[rowNumber].cells[colNumber + 1].setColNumber(rows[rowNumber].cells[colNumber].colNumber);
+                        } else if (rows[rowNumber].cells[colNumber].rowSpan < rows[rowNumber].cells[colNumber + 1].rowSpan) {
+                            rows[rowNumber].cells[colNumber + 1].setRowSpan(rows[rowNumber].cells[colNumber].rowSpan);
+                            rows[rowNumber].cells[colNumber].setColSpan(rows[rowNumber].cells[colNumber + 1].colSpan);
+                            rows[rowNumber].cells[colNumber].setColNumber(rows[rowNumber].cells[colNumber + 1].colNumber);
+                        } else {
+                            isBadTable = true;
+                            return true;
+                        }
                     }
                 }
                 if (rows[rowNumber].cells[colNumber].rowNumber + rows[rowNumber].cells[colNumber].rowSpan > rowNumber + 1) {
@@ -370,13 +382,29 @@ public class TableBorder extends BaseObject {
                             rows[rowNumber].cells[colNumber].colNumber + rows[rowNumber].cells[colNumber].colSpan) {
                         rows[rowNumber + 1].cells[colNumber] = rows[rowNumber].cells[colNumber];
                     } else {
-                        isBadTable = true;
-                        return true;
+                        badCellCount++;
+                        if (rows[rowNumber].cells[colNumber].colSpan > rows[rowNumber].cells[colNumber + 1].colSpan) {
+                            rows[rowNumber].cells[colNumber].setColSpan(rows[rowNumber].cells[colNumber + 1].colSpan);
+                            rows[rowNumber].cells[colNumber + 1].setRowSpan(rows[rowNumber].cells[colNumber].rowSpan);
+                            rows[rowNumber].cells[colNumber + 1].setRowNumber(rows[rowNumber].cells[colNumber].rowNumber);
+                        } else if (rows[rowNumber].cells[colNumber].colSpan < rows[rowNumber].cells[colNumber + 1].colSpan) {
+                            rows[rowNumber].cells[colNumber + 1].setColSpan(rows[rowNumber].cells[colNumber].colSpan);
+                            rows[rowNumber].cells[colNumber].setRowSpan(rows[rowNumber].cells[colNumber + 1].rowSpan);
+                            rows[rowNumber].cells[colNumber].setRowNumber(rows[rowNumber].cells[colNumber + 1].rowNumber);
+                        } else {
+                            isBadTable = true;
+                            return true;
+                        }
                     }
                 }
             }
         }
-        return false;
+        if (badCellCount*1.0 / (numberOfRows * numberOfColumns) < 0.3) {
+            return false;
+        } else {
+            isBadTable = true;
+            return true;
+        }
     }
 
     private void detectRedundantRows(List<Integer> redundantRows, List<Integer> usefulRows,
