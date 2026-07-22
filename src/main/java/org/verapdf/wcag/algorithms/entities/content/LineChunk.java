@@ -24,6 +24,7 @@ import org.verapdf.wcag.algorithms.entities.geometry.BoundingBox;
 import org.verapdf.wcag.algorithms.entities.geometry.Vertex;
 import org.verapdf.wcag.algorithms.semanticalgorithms.utils.NodeUtils;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
 
@@ -40,12 +41,19 @@ public class LineChunk extends InfoChunk {
 	private final boolean isHorizontalLine;
 	private final boolean isVerticalLine;
 	private final boolean isSquare;
+	/** Stroking color as normalized RGB (length 3, values in [0, 1]). May be null when unknown. */
+	private final double[] strokeColor;
 
 	public LineChunk(Integer pageNumber, double startX, double startY, double endX, double endY) {
-		this(pageNumber, startX, startY, endX, endY, 1.0);
+		this(pageNumber, startX, startY, endX, endY, 1.0, null);
 	}
 
 	public LineChunk(Integer pageNumber, double startX, double startY, double endX, double endY, double width) {
+		this(pageNumber, startX, startY, endX, endY, width, null);
+	}
+
+	public LineChunk(Integer pageNumber, double startX, double startY, double endX, double endY, double width,
+					 double[] strokeColor) {
 		super(new BoundingBox(pageNumber, Math.min(startX, endX) - 0.5 * width,
 				Math.min(startY, endY) - 0.5 * width, Math.max(startX, endX) + 0.5 * width,
 				Math.max(startY, endY) + 0.5 * width));//fix
@@ -57,6 +65,15 @@ public class LineChunk extends InfoChunk {
 		isSquare = hasCloseX && hasCloseY;
 		isVerticalLine = hasCloseX && !hasCloseY;
 		isHorizontalLine = !hasCloseX && hasCloseY;
+		this.strokeColor = strokeColor != null && strokeColor.length == 3 ? strokeColor.clone() : null;
+	}
+
+	/**
+	 * Returns the stroking color as a length-3 RGB array with values in [0, 1],
+	 * or {@code null} when no color information is available for this line.
+	 */
+	public double[] getStrokeColor() {
+		return strokeColor == null ? null : strokeColor.clone();
 	}
 
 	public double getStartX() {
@@ -126,7 +143,7 @@ public class LineChunk extends InfoChunk {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(start.getX(), start.getY(), end.getX(), end.getY(), width);
+		return Objects.hash(start.getX(), start.getY(), end.getX(), end.getY(), width, Arrays.hashCode(strokeColor));
 	}
 
 	@Override
@@ -139,7 +156,8 @@ public class LineChunk extends InfoChunk {
 				&& Double.compare(that.start.getY(), start.getY()) == 0
 				&& Double.compare(that.end.getX(), end.getX()) == 0
 				&& Double.compare(that.end.getY(), end.getY()) == 0
-				&& Double.compare(that.width, width) == 0;
+				&& Double.compare(that.width, width) == 0
+				&& Arrays.equals(that.strokeColor, this.strokeColor);
 	}
 
 	@Override
@@ -153,6 +171,7 @@ public class LineChunk extends InfoChunk {
 				", endX=" + end.getX() +
 				", endY=" + end.getY() +
 				", width=" + width +
+				", strokeColor=" + (strokeColor == null ? "null" : Arrays.toString(strokeColor)) +
 				'}';
 	}
 
@@ -179,8 +198,13 @@ public class LineChunk extends InfoChunk {
 
 	public static LineChunk createLineChunk(Integer pageNumber, double startX, double startY, double endX, double endY,
 											double width, int cap) {
+		return createLineChunk(pageNumber, startX, startY, endX, endY, width, cap, null);
+	}
+
+	public static LineChunk createLineChunk(Integer pageNumber, double startX, double startY, double endX, double endY,
+											double width, int cap, double[] strokeColor) {
 		if (cap == ROUND_CAP_STYLE || cap == PROJECTING_SQUARE_CAP_STYLE) {
-			return new LineChunk(pageNumber, startX, startY, endX, endY, width);
+			return new LineChunk(pageNumber, startX, startY, endX, endY, width, strokeColor);
 		}
 		double length = Math.sqrt(Math.pow(startX - endX, 2) + Math.pow(startY - endY, 2));
 		if (width > length) {
@@ -189,11 +213,11 @@ public class LineChunk extends InfoChunk {
 			double deltaX = (centerY - startY) * width / length;
 			double deltaY = (centerX - startX) * width / length;
 			return createLineChunk(pageNumber, centerX + deltaX, centerY - deltaY,
-					centerX - deltaX, centerY + deltaY, length, BUTT_CAP_STYLE);
+					centerX - deltaX, centerY + deltaY, length, BUTT_CAP_STYLE, strokeColor);
 		}
 		double deltaX = (endX - startX) * 0.5 * width / length;
 		double deltaY = (endY - startY) * 0.5 * width / length;
 		return createLineChunk(pageNumber, startX + deltaX, startY + deltaY,
-				endX - deltaX, endY - deltaY, width, PROJECTING_SQUARE_CAP_STYLE);
+				endX - deltaX, endY - deltaY, width, PROJECTING_SQUARE_CAP_STYLE, strokeColor);
 	}
 }
