@@ -32,36 +32,38 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class TableBorderCell extends BaseObject {
-    protected int rowNumber;
-    protected int colNumber;
-    protected int rowSpan;
-    protected int colSpan;
-    private final List<TableToken> content;
-    private List<IObject> contents;
-    private SemanticType semanticType;
-    private INode node;
+	protected int rowNumber;
+	protected int colNumber;
+	protected int rowSpan;
+	protected int colSpan;
+	private final List<TableToken> content;
+	private List<IObject> contents;
+	private SemanticType semanticType;
+	private INode node;
+	/** Background color as normalized RGB (length 3, values in [0, 1]). May be null. */
+	private double[] backgroundColor;
 
-    public TableBorderCell(int rowNumber, int colNumber, int rowSpan, int colSpan, Long id) {
-        super(new BoundingBox());
-        this.rowNumber = rowNumber;
-        this.colNumber = colNumber;
-        this.rowSpan = rowSpan;
-        this.colSpan = colSpan;
-        content = new LinkedList<>();
-        contents = new LinkedList<>();
-        setRecognizedStructureId(id);
-    }
+	public TableBorderCell(int rowNumber, int colNumber, int rowSpan, int colSpan, Long id) {
+		super(new BoundingBox());
+		this.rowNumber = rowNumber;
+		this.colNumber = colNumber;
+		this.rowSpan = rowSpan;
+		this.colSpan = colSpan;
+		content = new LinkedList<>();
+		contents = new LinkedList<>();
+		setRecognizedStructureId(id);
+	}
 
-    public TableBorderCell(INode node, int rowNumber, int colNumber) {
-        super(node.getBoundingBox());
-        this.node = node;
-        this.rowSpan = (int) node.getAttributesDictionary().getRowSpan();
-        this.colSpan = (int) node.getAttributesDictionary().getColSpan();
-        this.rowNumber = rowNumber;
-        this.colNumber = colNumber;
-        content = new LinkedList<>();
-        contents = new LinkedList<>();
-    }
+	public TableBorderCell(INode node, int rowNumber, int colNumber) {
+		super(node.getBoundingBox());
+		this.node = node;
+		this.rowSpan = (int) node.getAttributesDictionary().getRowSpan();
+		this.colSpan = (int) node.getAttributesDictionary().getColSpan();
+		this.rowNumber = rowNumber;
+		this.colNumber = colNumber;
+		content = new LinkedList<>();
+		contents = new LinkedList<>();
+	}
 
     public void addContent(TableToken token) {
         content.add(token);
@@ -131,15 +133,31 @@ public class TableBorderCell extends BaseObject {
         this.colSpan = colSpan;
     }
 
-    public boolean isHeaderCell() {
-        return semanticType == SemanticType.TABLE_HEADER;
-    }
+	public boolean isHeaderCell() {
+		return semanticType == SemanticType.TABLE_HEADER;
+	}
 
-    public BoundingBox getContentBoundingBox() {
-        BoundingBox boundingBox = new MultiBoundingBox();
-        for (TableToken token : content) {
-            boundingBox.union(token.getBoundingBox());
-        }
-        return boundingBox;
-    }
+	/**
+	 * Returns the cell background color as a length-3 RGB array with values in [0, 1],
+	 * or {@code null} when no background color has been assigned.
+	 */
+	public double[] getBackgroundColor() {
+		return backgroundColor == null ? null : backgroundColor.clone();
+	}
+
+	/**
+	 * Sets the cell background color as a length-3 RGB array with values in [0, 1].
+	 * A defensive copy is stored; passing {@code null} clears the background color.
+	 */
+	public void setBackgroundColor(double[] backgroundColor) {
+		this.backgroundColor = backgroundColor == null ? null : backgroundColor.clone();
+	}
+
+	public BoundingBox getContentBoundingBox() {
+		BoundingBox boundingBox = new MultiBoundingBox();
+		for (TableToken token : content) {
+			boundingBox.union(token.getBoundingBox());
+		}
+		return boundingBox;
+	}
 }
