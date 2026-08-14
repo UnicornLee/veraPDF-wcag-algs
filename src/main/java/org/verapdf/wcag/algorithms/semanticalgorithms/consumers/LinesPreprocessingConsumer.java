@@ -147,14 +147,18 @@ public class LinesPreprocessingConsumer extends WCAGConsumer {
             horizontalLines.sort(Comparator.comparingDouble(item -> item.getTopY()));
             boolean isAllNotBlack = true;
             for (LineChunk verticalLine : verticalLines) {
-                if (verticalLine.getStrokeColor()[0] == 0.0 && verticalLine.getStrokeColor()[1] == 0.0 && verticalLine.getStrokeColor()[2] == 0.0) {
+                double[] strokeColor = verticalLine.getStrokeColor();
+                if (strokeColor == null || (strokeColor.length == 3 &&
+                        strokeColor[0] == 0.0 && strokeColor[1] == 0.0 && strokeColor[2] == 0.0)) {
                     isAllNotBlack = false;
                     break;
                 }
             }
             if (!isAllNotBlack) {
                 for (LineChunk horizontalLine : horizontalLines) {
-                    if (horizontalLine.getStrokeColor()[0] == 0.0 && horizontalLine.getStrokeColor()[1] == 0.0 && horizontalLine.getStrokeColor()[2] == 0.0) {
+                    double[] strokeColor = horizontalLine.getStrokeColor();
+                    if (strokeColor == null || (strokeColor.length == 3 &&
+                            strokeColor[0] == 0.0 && strokeColor[1] == 0.0 && strokeColor[2] == 0.0)) {
                         isAllNotBlack = false;
                         break;
                     }

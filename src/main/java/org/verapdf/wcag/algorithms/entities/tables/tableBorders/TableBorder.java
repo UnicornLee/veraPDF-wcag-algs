@@ -38,6 +38,15 @@ public class TableBorder extends BaseObject {
     public static final double TABLE_BORDER_EPSILON = 0.6;
     public static final double MIN_CELL_CONTENT_INTERSECTION_PERCENT = 0.6;
 
+    /**
+     * Maximum distance (in PDF points) between a candidate table X coordinate and
+     * the center X of a vertical line or the endpoint X of a horizontal line for
+     * that coordinate to be considered supported. Coordinates at the table edges
+     * that lack such support are typically created by page-decoration horizontal
+     * lines that overlap a table border and extend past it.
+     */
+    private static final double VERTICAL_LINE_SUPPORT_EPSILON = 1.0;
+
     private final List<Double> xCoordinates = new LinkedList<>();
     private final List<Double> xWidths = new LinkedList<>();
     private final List<Double> yCoordinates = new LinkedList<>();
@@ -83,18 +92,88 @@ public class TableBorder extends BaseObject {
         List<Vertex> vertexes = builder.getVertexes().stream().sorted(new Vertex.VertexComparatorX()).collect(Collectors.toList());
         double x1 = vertexes.get(0).getLeftX();
         double x2 = vertexes.get(0).getRightX();
+        List<Double> candidateXCoordinates = new ArrayList<>();
+        List<Double> candidateXWidths = new ArrayList<>();
         for (Vertex v : vertexes) {
             if (x2 < v.getLeftX() - NodeUtils.VERTEX_TABLE_FACTOR * v.getRadius()) {
-                xCoordinates.add(0.5 * (x1 + x2));
-                xWidths.add(x2 - x1);
+                candidateXCoordinates.add(0.5 * (x1 + x2));
+                candidateXWidths.add(x2 - x1);
                 x1 = v.getLeftX();
                 x2 = v.getRightX();
             } else if (x2 < v.getRightX()) {
                 x2 = v.getRightX();
             }
         }
-        xCoordinates.add(0.5 * (x1 + x2));
-        xWidths.add(x2 - x1);
+        candidateXCoordinates.add(0.5 * (x1 + x2));
+        candidateXWidths.add(x2 - x1);
+
+        // Drop unsupported edge coordinates created by dangling horizontal line endpoints.
+        // A coordinate is kept if it is supported by a vertical line OR by multiple
+        // horizontal line endpoints (top/bottom borders of partial-border tables).
+        while (candidateXCoordinates.size() > 2 &&
+                !hasEdgeSupport(candidateXCoordinates.get(0), builder)) {
+            candidateXCoordinates.remove(0);
+            candidateXWidths.remove(0);
+        }
+        while (candidateXCoordinates.size() > 2 &&
+                !hasEdgeSupport(candidateXCoordinates.get(candidateXCoordinates.size() - 1), builder)) {
+            int lastIndex = candidateXCoordinates.size() - 1;
+            candidateXCoordinates.remove(lastIndex);
+            candidateXWidths.remove(lastIndex);
+        }
+
+        xCoordinates.addAll(candidateXCoordinates);
+        xWidths.addAll(candidateXWidths);
+
+        // Tighten the horizontal extent of the bounding box now that unsupported
+        // edge coordinates have been removed. The vertical extent remains unchanged.
+        if (xCoordinates.size() > 1) {
+            getBoundingBox().setLeftX(getLeftX(0));
+            getBoundingBox().setRightX(getRightX(xCoordinates.size() - 2));
+        }
+    }
+
+    /**
+     * Checks whether a candidate X coordinate is supported by either a vertical
+     * table border line or by multiple horizontal line endpoints. Horizontal line
+     * endpoints that extend past the table can create spurious coordinates; such
+     * coordinates will not have a vertical line near them and will not be anchored
+     * by multiple horizontal lines, so they can be safely dropped from the table edges.
+     */
+    private boolean hasEdgeSupport(double xCoordinate, TableBorderBuilder builder) {
+        return hasVerticalLineSupport(xCoordinate, builder) || hasHorizontalEdgeSupport(xCoordinate, builder);
+    }
+
+    /**
+     * Checks whether a candidate X coordinate is supported by an actual vertical
+     * table border line.
+     */
+    private boolean hasVerticalLineSupport(double xCoordinate, TableBorderBuilder builder) {
+        for (LineChunk verticalLine : builder.getVerticalLines()) {
+            if (Math.abs(verticalLine.getCenterX() - xCoordinate) <= VERTICAL_LINE_SUPPORT_EPSILON) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether a candidate X coordinate is anchored by multiple horizontal
+     * line endpoints (e.g., top and bottom borders of a partial-border table).
+     * A single dangling horizontal line will not satisfy this condition.
+     */
+    private boolean hasHorizontalEdgeSupport(double xCoordinate, TableBorderBuilder builder) {
+        int count = 0;
+        for (LineChunk horizontalLine : builder.getHorizontalLines()) {
+            if (Math.abs(horizontalLine.getLeftX() - xCoordinate) <= VERTICAL_LINE_SUPPORT_EPSILON ||
+                    Math.abs(horizontalLine.getRightX() - xCoordinate) <= VERTICAL_LINE_SUPPORT_EPSILON) {
+                count++;
+                if (count >= 2) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public TableBorder(INode tableNode) {
