@@ -22,6 +22,7 @@ import org.verapdf.wcag.algorithms.semanticalgorithms.containers.StaticContainer
 import javax.imageio.spi.IIORegistry;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.RasterFormatException;
 import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -95,10 +96,15 @@ public class ImagesUtils implements Closeable {
             return null;
         }
         int pageNumber = bBox.getPageNumber();
-        double dpiScaling = getDpiScalingForPage(bBox.getPageNumber());
-        int renderedPageWidth = renderedPage.getRaster().getWidth();
-        int renderedPageHeight = renderedPage.getRaster().getHeight();
-        BoundingBox pageBBox = new BoundingBox(pageNumber,0, 0, renderedPageWidth, renderedPageHeight);
+        Double dpiScaling = getDpiScalingForPage(pageNumber);
+        if (dpiScaling == null) {
+            LOGGER.log(Level.WARNING,
+                    "No DPI scaling found for page {0}; skipping sub-image extraction.", pageNumber);
+            return null;
+        }
+        int renderedPageWidth = renderedPage.getWidth();
+        int renderedPageHeight = renderedPage.getHeight();
+        BoundingBox pageBBox = new BoundingBox(pageNumber, 0, 0, renderedPageWidth, renderedPageHeight);
         BoundingBox scaledBBox = new BoundingBox(pageNumber, bBox.getLeftX() * dpiScaling,
                 bBox.getBottomY() * dpiScaling,
                 bBox.getRightX() * dpiScaling,
@@ -110,11 +116,30 @@ public class ImagesUtils implements Closeable {
             return null;
         }
 
-        int x = (int) (Math.floor(scaledBBox.getLeftX()));
-        int y = (int) (Math.ceil(scaledBBox.getTopY()));
+        int x = Math.max(0, Math.min((int) Math.floor(scaledBBox.getLeftX()), renderedPageWidth - 1));
+        int y = Math.max(0, Math.min((int) Math.ceil(scaledBBox.getTopY()), renderedPageHeight));
+        int subY = renderedPageHeight - y;
         int width = getIntegerBBoxValueForProcessing(scaledBBox.getWidth(), 1);
         int height = getIntegerBBoxValueForProcessing(scaledBBox.getHeight(), 1);
-        return renderedPage.getSubimage(x, renderedPage.getHeight() - y, width,  height);
+        width = Math.min(width, renderedPageWidth - x);
+        height = Math.min(height, renderedPageHeight - subY);
+
+        if (width <= 0 || height <= 0) {
+            LOGGER.log(Level.WARNING,
+                    "Clamped sub-image has zero size for page {0}; bbox={1}, image={2}x{3}",
+                    new Object[]{pageNumber, scaledBBox, renderedPageWidth, renderedPageHeight});
+            return null;
+        }
+
+        try {
+            return renderedPage.getSubimage(x, subY, width, height);
+        } catch (RasterFormatException e) {
+            LOGGER.log(Level.WARNING,
+                    "getSubimage failed even after clamping for page {0}; bbox={1}, image={2}x{3}, " +
+                            "subimage=(x={4}, y={5}, w={6}, h={7})",
+                    new Object[]{pageNumber, scaledBBox, renderedPageWidth, renderedPageHeight, x, subY, width, height});
+            return null;
+        }
     }
 
     public BufferedImage getPageSubImage(BoundingBox bBox) {
