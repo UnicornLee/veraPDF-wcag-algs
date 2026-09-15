@@ -462,14 +462,14 @@ public class TableBorder extends BaseObject {
                         rows[rowNumber + 1].cells[colNumber] = rows[rowNumber].cells[colNumber];
                     } else {
                         badCellCount++;
-                        if (rows[rowNumber].cells[colNumber].colSpan > rows[rowNumber].cells[colNumber + 1].colSpan) {
-                            rows[rowNumber].cells[colNumber].setColSpan(rows[rowNumber].cells[colNumber + 1].colSpan);
-                            rows[rowNumber].cells[colNumber + 1].setRowSpan(rows[rowNumber].cells[colNumber].rowSpan);
-                            rows[rowNumber].cells[colNumber + 1].setRowNumber(rows[rowNumber].cells[colNumber].rowNumber);
-                        } else if (rows[rowNumber].cells[colNumber].colSpan < rows[rowNumber].cells[colNumber + 1].colSpan) {
-                            rows[rowNumber].cells[colNumber + 1].setColSpan(rows[rowNumber].cells[colNumber].colSpan);
-                            rows[rowNumber].cells[colNumber].setRowSpan(rows[rowNumber].cells[colNumber + 1].rowSpan);
-                            rows[rowNumber].cells[colNumber].setRowNumber(rows[rowNumber].cells[colNumber + 1].rowNumber);
+                        if (rows[rowNumber].cells[colNumber].colSpan > rows[rowNumber + 1].cells[colNumber].colSpan) {
+                            rows[rowNumber].cells[colNumber].setColSpan(rows[rowNumber + 1].cells[colNumber].colSpan);
+                            rows[rowNumber + 1].cells[colNumber].setRowSpan(rows[rowNumber].cells[colNumber].rowSpan);
+                            rows[rowNumber + 1].cells[colNumber].setRowNumber(rows[rowNumber].cells[colNumber].rowNumber);
+                        } else if (rows[rowNumber].cells[colNumber].colSpan < rows[rowNumber + 1].cells[colNumber].colSpan) {
+                            rows[rowNumber + 1].cells[colNumber].setColSpan(rows[rowNumber].cells[colNumber].colSpan);
+                            rows[rowNumber].cells[colNumber].setRowSpan(rows[rowNumber + 1].cells[colNumber].rowSpan);
+                            rows[rowNumber].cells[colNumber].setRowNumber(rows[rowNumber + 1].cells[colNumber].rowNumber);
                         } else {
                             isBadTable = true;
                             return true;
