@@ -47,6 +47,20 @@ public class TableBorder extends BaseObject {
      */
     private static final double VERTICAL_LINE_SUPPORT_EPSILON = 1.0;
 
+    /**
+     * A horizontal border whose right end is closer to the table right edge than this distance
+     * (in PDF points) is treated as "almost at the right edge" and is extended to the right edge
+     * before the column coordinates are computed.
+     */
+    private static final double RIGHT_EDGE_EXTENSION_GAP = 10.0;
+
+    /**
+     * A vertical line counts as a real table border only when it covers at least this fraction of
+     * every row it crosses. Shorter pieces (stubs left over from a fragmented horizontal border)
+     * are ignored.
+     */
+    private static final double MIN_VERTICAL_LINE_ROW_COVERAGE = 2.0 / 3.0;
+
     private final List<Double> xCoordinates = new LinkedList<>();
     private final List<Double> xWidths = new LinkedList<>();
     private final List<Double> yCoordinates = new LinkedList<>();
@@ -62,10 +76,103 @@ public class TableBorder extends BaseObject {
 
     public TableBorder(TableBorderBuilder builder) {
         super(new BoundingBox(builder.getBoundingBox()));
-        calculateXCoordinates(builder);
+        // Row coordinates are computed first because extending the short right horizontal borders
+        // needs the row heights to tell real vertical borders from leftover stubs.
         calculateYCoordinates(builder);
+        extendShortRightHorizontalLines(builder);
+        calculateXCoordinates(builder);
         createMatrix(builder);
         setRecognizedStructureId(StaticContainers.getNextID());
+    }
+
+    /**
+     * Extends horizontal borders that stop just short of the table right edge.
+     *
+     * <p>Some producers draw a table whose header row is wider than its data rows, and leave the
+     * right edge without a closing vertical border: the header border then reaches the table right
+     * edge while every data row border ends a few points earlier (540.22 against 547.204 in one real
+     * document). The table structure logic reads the leftover piece as a column of its own; the
+     * neighbouring cells then get conflicting row spans, and the output ends up with an empty narrow
+     * column while the real cell content is dropped.</p>
+     *
+     * <p>The horizontal borders are only extended when the table right edge is not closed by a
+     * vertical border running through the rows, and only the borders already within {@link
+     * #RIGHT_EDGE_EXTENSION_GAP} of the edge are touched; their right end is moved exactly onto the
+     * table right edge (not past it, otherwise the coordinate lookup would fail and the border would
+     * be discarded).</p>
+     */
+    private void extendShortRightHorizontalLines(TableBorderBuilder builder) {
+        Set<LineChunk> horizontalLines = builder.getHorizontalLines();
+        if (horizontalLines.isEmpty()) {
+            return;
+        }
+        double rightEdgeX = builder.getBoundingBox().getRightX();
+        List<LineChunk> shortRightLines = new ArrayList<>();
+        double leftmostShortRightEnd = Double.MAX_VALUE;
+        for (LineChunk line : horizontalLines) {
+            double gap = rightEdgeX - line.getRightX();
+            if (gap > 0.0 && gap < RIGHT_EDGE_EXTENSION_GAP) {
+                shortRightLines.add(line);
+                leftmostShortRightEnd = Math.min(leftmostShortRightEnd, line.getRightX());
+            }
+        }
+        if (shortRightLines.isEmpty()) {
+            return;
+        }
+        double rightmostVerticalX = -Double.MAX_VALUE;
+        for (LineChunk verticalLine : builder.getVerticalLines()) {
+            if (isVerticalLineCoveringRows(verticalLine)) {
+                rightmostVerticalX = Math.max(rightmostVerticalX, verticalLine.getCenterX());
+            }
+        }
+        if (rightmostVerticalX == -Double.MAX_VALUE ||
+                leftmostShortRightEnd - rightmostVerticalX <= RIGHT_EDGE_EXTENSION_GAP) {
+            // Either the table has no usable vertical border at all, or the right edge is already
+            // closed by a vertical border: leave the geometry untouched.
+            return;
+        }
+        for (LineChunk line : shortRightLines) {
+            if (!horizontalLines.remove(line)) {
+                continue;
+            }
+            boolean leftToRight = line.getStartX() <= line.getEndX();
+            // createLineChunk pulls the end points in by half the stroke width, so the bounding box
+            // (and therefore getRightX(), which is what the coordinate lookup uses) ends exactly on
+            // the table right edge. Building the LineChunk directly would inflate the box by half
+            // the stroke width instead and push the border past the last coordinate, making the
+            // whole border be discarded.
+            horizontalLines.add(LineChunk.createLineChunk(line.getPageNumber(),
+                    leftToRight ? line.getStartX() : rightEdgeX, line.getStartY(),
+                    leftToRight ? rightEdgeX : line.getEndX(), line.getEndY(),
+                    line.getWidth(), LineChunk.BUTT_CAP_STYLE, line.getStrokeColor()));
+        }
+    }
+
+    private boolean isVerticalLineCoveringRows(LineChunk verticalLine) {
+        int rows = yCoordinates.size() - 1;
+        if (rows < 1) {
+            return false;
+        }
+        // End points only: the bounding box is inflated by half the stroke width and would make the
+        // line "touch" the neighbouring rows as well.
+        double lineTop = Math.max(verticalLine.getStartY(), verticalLine.getEndY());
+        double lineBottom = Math.min(verticalLine.getStartY(), verticalLine.getEndY());
+        boolean intersectsRow = false;
+        for (int rowNumber = 0; rowNumber < rows; rowNumber++) {
+            // Row limits are the row border centers, again to avoid the border thickness bleeding
+            // into the neighbouring rows.
+            double rowTop = yCoordinates.get(rowNumber);
+            double rowBottom = yCoordinates.get(rowNumber + 1);
+            double overlap = Math.min(lineTop, rowTop) - Math.max(lineBottom, rowBottom);
+            if (overlap <= 0.0) {
+                continue;
+            }
+            intersectsRow = true;
+            if (overlap < MIN_VERTICAL_LINE_ROW_COVERAGE * (rowTop - rowBottom)) {
+                return false;
+            }
+        }
+        return intersectsRow;
     }
 
     public TableBorder(int numberOfRows, int numberOfColumns) {
