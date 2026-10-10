@@ -159,10 +159,18 @@
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
+            <id>vera-dev</id>
+            <name>Vera development</name>
+            <url>https://artifactory.openpreservation.org/artifactory/vera-dev</url>
+        </repository>
+    </repositories>
+
+    <distributionManagement>
+        <repository>
             <id>stock</id>
             <name>stock release repository</name>
             <url>https://nexus.valueonline.cn/repository/maven-releases/</url>
         </repository>
-    </repositories>
+    </distributionManagement>
 
 </project>
